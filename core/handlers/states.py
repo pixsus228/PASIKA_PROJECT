@@ -6,9 +6,11 @@ class Registration(StatesGroup):
     gender = State()
     city = State()
     is_military = State()
-    photo = State()
+    bio = State()    # додав стан для опису про себе
+    photo = State()  # фінальний етап з медіа
 
-# Додав відсутній клас для редагування профілю
 class EditProfile(StatesGroup):
     media = State()
     city = State()
+    is_military = State()
+    bio = State()    # додав стан для редагування опису
