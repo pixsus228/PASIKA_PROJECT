@@ -1,0 +1,13 @@
+﻿.env
+.idea/
+data/*.db
+data/*.sqlite
+__pycache__/
+*.pyc
+Lib/
+Scripts/
+include/
+.venv/
+venv/
+*.zip
+ZIP_PROJECT.py
