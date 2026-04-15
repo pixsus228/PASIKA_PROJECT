@@ -40,27 +40,46 @@ async def get_universal_markup(user_id: int, current_index: int, total_media: in
     return kb.as_markup()
 
 
+# (c) 2026 Olexiy Karnaukh. All rights reserved.
+# LOSTVAYNE-CORE: feature/zsu-hub logic
+
 @router.message(F.text == "🍯 Пошук")
 async def cmd_search(message: types.Message, session: AsyncSession):
-    """Пошук та вивід випадкової анкети"""
+    # Отримуємо дані користувача, який шукає
+    user = await session.scalar(select(User).where(User.tg_id == message.from_user.id))
+
+    # ПРІОРИТЕТНА ВИДАЧА (Військовий хаб)
+    # Спочатку шукаємо військових (is_military == True)
     target = await session.scalar(
         select(User).where(
             User.tg_id != message.from_user.id,
-            User.age != None
+            User.age != None,
+            User.is_military == True
         ).order_by(func.random()).limit(1)
     )
+
+    # Якщо військових немає, беремо будь-яку іншу анкету
+    if not target:
+        target = await session.scalar(
+            select(User).where(
+                User.tg_id != message.from_user.id,
+                User.age != None,
+                User.is_military == False
+            ).order_by(func.random()).limit(1)
+        )
 
     if not target:
         return await message.answer("Поки що нових бджілок немає. 🐝")
 
-    caption = (f"👤 {target.username}, {target.age}\n📍 {target.city}\n"
+    # Додаємо спеціальну позначку для побратимів у назві
+    prefix = "🎖️ ПОБРАТИМ: " if target.is_military else ""
+    caption = (f"{prefix}{target.username}, {target.age}\n📍 {target.city}\n"
                f"🎖️ ЗСУ: {'Так' if target.is_military else 'Ні'}")
 
     markup = await get_universal_markup(target.tg_id, 0, len(target.media_content or []), False)
 
     if target.media_content:
         m = target.media_content[0]
-        # Визначив метод відправки за типом файлу (photo/video)
         method = message.answer_photo if m['type'] == 'photo' else message.answer_video
         await method(m['file_id'], caption=caption, reply_markup=markup)
     else:
