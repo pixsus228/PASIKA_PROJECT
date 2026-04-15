@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from database.models import Base
 
 # Підключаю нові сегментовані роутери (Протокол Single Responsibility)
-from core.handlers.dating import common, registration, profile, search
+from core.handlers.dating import common, registration, profile, search, roulette
 
 load_dotenv()
 
@@ -46,11 +46,12 @@ async def main():
     # Реєструю мідлварь та роутери в правильному порядку
     dp.update.middleware(database_middleware)
 
-    # common має бути першим для обробки /start та базової навігації
+    # Реєструю роутери
     dp.include_router(common.router)
     dp.include_router(registration.router)
     dp.include_router(profile.router)
     dp.include_router(search.router)
+    dp.include_router(roulette.router) # додав роутер рулетки
 
     print("✅ Сер, Екосистему ПАСІКА запущено за новою модульною архітектурою.")
 
