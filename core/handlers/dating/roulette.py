@@ -6,14 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import User
 from core.services.queue_manager import add_to_queue, remove_from_queue, find_partner_match
+from core.services.antispam import is_spam_or_leak
 
-# Сер, створив роутер для анонімного спілкування
 router = Router()
 
 @router.message(Command("roulette"))
 @router.message(F.text == "🎲 Рулетка")
 async def cmd_roulette_start(message: types.Message, session: AsyncSession, state: FSMContext):
-    """ Вхід користувача в асинхронну чергу рулетки """
     user = await session.scalar(select(User).where(User.tg_id == message.from_user.id))
     
     if not user or user.age is None:
@@ -42,7 +41,6 @@ async def cmd_roulette_start(message: types.Message, session: AsyncSession, stat
 
 @router.message(Command("stop"))
 async def cmd_roulette_stop(message: types.Message, state: FSMContext):
-    """ Вихід з черги або завершення активного діалогу """
     data = await state.get_data()
     partner_id = data.get("in_chat_with")
     
@@ -60,12 +58,15 @@ async def cmd_roulette_stop(message: types.Message, state: FSMContext):
 
 @router.message(F.text)
 async def handle_roulette_chat(message: types.Message, state: FSMContext):
-    """ Пересилання повідомлень між бджілками всередині чату """
     data = await state.get_data()
     partner_id = data.get("in_chat_with")
     
     if not partner_id:
         return
+
+    # Сер, перевіряю текст на наявність лінків/телефонів перед доставкою партнера
+    if await is_spam_or_leak(message.text):
+        return await message.answer("🛑 Сервіс безпеки: Обмін контактами (посилання, юзернейми, номери) заборонено! Спілкуйтеся всередині Вулика.")
 
     try:
         await message.copy_to(chat_id=partner_id)
