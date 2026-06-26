@@ -1,65 +1,53 @@
-import asyncio
+﻿import asyncio
 import logging
-import os
-from aiogram import Bot, Dispatcher, types
-from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from database.models import Base
+import sys
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.utils.callback_answer import CallbackQueryMiddleware
 
-# Підключаю нові сегментовані роутери (Протокол Single Responsibility)
-from core.handlers.dating import common, registration, profile, search, roulette
+# Імпорт конфігурації бази даних
+from database.engine import session_maker
+from core.middlewares.db import DbSessionMiddleware
 
-load_dotenv()
-
-# Використовую бойову базу pasika_final.db на LOSTVAYNE-LOQ
-engine = create_async_engine('sqlite+aiosqlite:///data/pasika_final.db')
-async_session = async_sessionmaker(engine, expire_on_commit=False)
-
-
-async def database_middleware(handler, event, data):
-    async with async_session() as session:
-        data['session'] = session
-        return await handler(event, data)
-
+# Сер, імпортую всі наші оновлені роутери
+from core.handlers.dating.common import router as common_router
+from core.handlers.dating.registration import router as registration_router
+from core.handlers.dating.roulette import router as roulette_router
+from core.handlers.dating.gossip_wall import router as gossip_router
+from core.handlers.dating.admin_moderation import router as admin_mod_router
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        stream=sys.stdout
+    )
 
-    # Створюю папку для бази, якщо вона відсутня
-    if not os.path.exists('data'):
-        os.makedirs('data')
+    # Сер, завантажую токен безпечно (переконайся, що він є в .env)
+    import os
+    TOKEN = os.getenv("TOKEN")
+    if not TOKEN:
+        logging.critical("🛑 ТОКЕН БОТА НЕ ЗНАЙДЕНО В .env!")
+        return
 
-    # Синхронізую моделі з базою
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    bot = Bot(token=TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
 
-    bot = Bot(token=os.getenv("BOT_TOKEN"))
-    dp = Dispatcher()
+    # Підключаємо сесію бази даних через Middleware
+    dp.update.middleware(DbSessionMiddleware(session_pool=session_maker))
+    dp.callback_query.middleware(CallbackQueryMiddleware())
 
-    # Закріплюю меню команд біля скріпки для зручності Серія
-    await bot.set_my_commands([
-        types.BotCommand(command="start", description="🚀 Запустити Вулик"),
-        types.BotCommand(command="profile", description="🐝 Моя Анкета"),
-        types.BotCommand(command="search", description="🍯 Пошук бджілок")
-    ])
+    # Реєстрація роутерів у суворому порядку
+    dp.include_router(common_router)
+    dp.include_router(registration_router)
+    dp.include_router(roulette_router)
+    dp.include_router(gossip_router)
+    dp.include_router(admin_mod_router)
 
-    # Реєструю мідлварь та роутери в правильному порядку
-    dp.update.middleware(database_middleware)
-
-    # Реєструю роутери
-    dp.include_router(common.router)
-    dp.include_router(registration.router)
-    dp.include_router(profile.router)
-    dp.include_router(search.router)
-    dp.include_router(roulette.router) # додав роутер рулетки
-
-    print("✅ Сер, Екосистему ПАСІКА запущено за новою модульною архітектурою.")
-
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
-
+    logging.info("🐝 Вулик успішно запущено під нові стандарти LOSTVAYNE-CORE!")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    from dotenv import load_file, load_dotenv
+    load_dotenv()
     asyncio.run(main())
