@@ -14,3 +14,7 @@ class EditProfile(StatesGroup):
     city = State()
     is_military = State()
     bio = State()    # додав стан для редагування опису
+
+class RouletteState(StatesGroup):
+    searching = State() # стан пошуку співрозмовника
+    in_chat = State()   # стан активного чату
